@@ -57,9 +57,27 @@
   }
 
   // ---------- auth ----------
+  // Forget everything from the previous session: questions, editor text, results,
+  // match marks, revealed answer keys, and the activity panel.
+  function resetState() {
+    questions = []; answers = {}; matched = {}; keys = {}; current = null;
+    $("question-list").innerHTML = "";
+    $("total-points").textContent = "";
+    $("q-points").textContent = ""; $("q-title").textContent = "Pick a question"; $("q-prompt").textContent = "";
+    $("q-shape").textContent = ""; $("q-sample").innerHTML = "";
+    $("sql").value = "";
+    $("result").innerHTML = ""; $("audit").innerHTML = "";
+    $("hint").hidden = true; $("hint-sql").textContent = ""; $("hint-result").innerHTML = "";
+    $("btn-hint").textContent = "Reveal answer key";
+    setMsg($("run-msg"), "");
+  }
+
+  let currentUserId = null;
   async function refreshSession() {
     const { data } = await sb.auth.getSession();
     const user = data.session && data.session.user;
+    if (!user || user.id !== currentUserId) resetState();   // signed out, or a different user signed in
+    currentUserId = user ? user.id : null;
     $("auth").hidden = !!user;
     $("quiz").hidden = !user;
     $("btn-signout").hidden = !user;
@@ -85,8 +103,15 @@
     setMsg($("auth-msg"), "Account created. Check your email for a confirmation link, then sign in.", "ok");
   });
 
-  $("btn-signout").addEventListener("click", async () => { await sb.auth.signOut(); });
+  $("btn-signout").addEventListener("click", async () => {
+    $("quiz").hidden = true;
+    resetState();
+    try { await sb.auth.signOut(); } catch (e) { /* local session is cleared regardless */ }
+    await refreshSession();
+  });
   sb.auth.onAuthStateChange(() => { refreshSession(); });
+  // A page restored from the back/forward cache keeps its old DOM; re-check the session.
+  window.addEventListener("pageshow", (ev) => { if (ev.persisted) refreshSession(); });
 
   // ---------- quiz ----------
   async function loadQuiz() {

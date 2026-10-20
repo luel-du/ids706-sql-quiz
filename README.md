@@ -11,7 +11,7 @@ verifies every answer key on each push.
 
 **Live quiz:** https://luel-du.github.io/ids706-sql-quiz/
 
-![The quiz page: question list on the left, prompt with expected-output preview, SQL editor, and the result table with a match indicator](docs/screenshot.png)
+![The quiz page: question list on the left, prompt with expected-output preview, SQL editor, and the result table with a match indicator](assets/screenshot.png)
 
 ## Contents
 
@@ -167,6 +167,8 @@ The deploy job runs only after verification passes. GitHub masks secret values i
 |-- .env.example                 variable names with placeholders
 |-- .gitignore                   .env, docs/config.js, .venv/
 |-- requirements.txt             psycopg2-binary, python-dotenv (pinned)
+|-- assets/
+|   `-- screenshot.png           README image, not published with the site
 |-- db/
 |   |-- schema.sql               schema quiz: tables, read-only role, functions, RLS, audit trigger (idempotent)
 |   `-- seed.sql                 seed data and the five questions with hint SQL and hint results (idempotent)
