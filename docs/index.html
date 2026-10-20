@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IDS706 SQL Quiz</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <div>
+      <h1>IDS706 SQL Quiz</h1>
+      <p class="sub">A university registrar database. 5 questions, 20 points. Write SQL, run it against live data.</p>
+    </div>
+    <div id="user-box" class="user-box">
+      <span id="user-email" class="muted"></span>
+      <button id="btn-signout" class="ghost" hidden>Sign out</button>
+    </div>
+  </header>
+
+  <!-- Signed-out view -->
+  <section id="auth" class="card auth">
+    <h2>Sign in to take the quiz</h2>
+    <p class="muted">Signed-out visitors cannot run queries or save answers. Create an account with any email and a password of at least 6 characters.</p>
+    <form id="auth-form">
+      <label>Email <input id="email" type="email" autocomplete="email" required></label>
+      <label>Password <input id="password" type="password" autocomplete="current-password" minlength="6" required></label>
+      <div class="row">
+        <button type="submit" id="btn-signin">Sign in</button>
+        <button type="button" id="btn-signup" class="ghost">Create account</button>
+      </div>
+    </form>
+    <p id="auth-msg" class="msg" role="status"></p>
+  </section>
+
+  <!-- Signed-in view -->
+  <main id="quiz" hidden>
+    <aside class="card schema">
+      <h2>Tables</h2>
+      <p class="muted">Schema <code>quiz</code> is on the search path, so plain table names work.</p>
+      <ul class="tables">
+        <li><b>instructors</b> (id, name, department, hired_year)</li>
+        <li><b>courses</b> (id, code, title, credits, instructor_id → instructors.id)</li>
+        <li><b>students</b> (id, name, major, start_year)</li>
+        <li><b>enrollments</b> (id, student_id → students.id, course_id → courses.id, term, grade_points)</li>
+      </ul>
+      <h2>Questions</h2>
+      <ol id="question-list" class="qlist"></ol>
+      <p class="muted small">Total: <span id="total-points"></span> points</p>
+    </aside>
+
+    <section class="card work">
+      <div id="q-header">
+        <span class="pill" id="q-points"></span>
+        <h2 id="q-title">Pick a question</h2>
+      </div>
+      <p id="q-prompt" class="prompt"></p>
+
+      <label class="editor-label" for="sql">Your SQL</label>
+      <textarea id="sql" rows="8" spellcheck="false" placeholder="select ... from courses ..."></textarea>
+      <div class="row">
+        <button id="btn-run">Run</button>
+        <button id="btn-save" class="ghost">Save answer</button>
+        <button id="btn-hint" class="ghost">Show hint</button>
+        <span id="run-msg" class="msg" role="status"></span>
+      </div>
+
+      <div id="result" class="result"></div>
+
+      <details id="hint" class="hint">
+        <summary>Hint: expected SQL and expected result</summary>
+        <pre id="hint-sql"></pre>
+        <div id="hint-result" class="result"></div>
+      </details>
+
+      <details class="hint">
+        <summary>My activity (audit log)</summary>
+        <div id="audit" class="result"></div>
+      </details>
+    </section>
+  </main>
+
+  <footer class="muted small">
+    Built for IDS706. Database: Supabase Postgres. Hosting: GitHub Pages. Source: <a id="repo-link" href="#">GitHub</a>.
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

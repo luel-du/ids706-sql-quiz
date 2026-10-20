@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  seed-and-verify:
+    name: Seed database and verify quiz hints
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Apply schema and seed, verify all hints
+        env:
+          # Supabase session-pooler connection string, stored as a GitHub Secret.
+          # Never written to the repo; GitHub masks it in logs.
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python scripts/seed_and_verify.py
+
+  deploy-pages:
+    name: Deploy quiz site to GitHub Pages
+    needs: seed-and-verify
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Write docs/config.js from secrets
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          test -n "$SUPABASE_URL" || { echo "SUPABASE_URL secret is missing"; exit 1; }
+          test -n "$SUPABASE_ANON_KEY" || { echo "SUPABASE_ANON_KEY secret is missing"; exit 1; }
+          printf 'window.QUIZ_CONFIG = { supabaseUrl: "%s", supabaseAnonKey: "%s", repoUrl: "%s" };\n' \
+            "$SUPABASE_URL" "$SUPABASE_ANON_KEY" "$REPO_URL" > docs/config.js
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - id: deployment
+        uses: actions/deploy-pages@v4
