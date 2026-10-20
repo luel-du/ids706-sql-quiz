@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   seed-and-verify:
-    name: Seed database and verify quiz hints
+    name: Seed database, verify quiz hints, run tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -30,6 +30,10 @@ jobs:
           # Never written to the repo; GitHub masks it in logs.
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python scripts/seed_and_verify.py
+      - name: Run integration tests
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: pytest -q tests/
 
   deploy-pages:
     name: Deploy quiz site to GitHub Pages

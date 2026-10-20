@@ -73,16 +73,22 @@
   }
 
   let currentUserId = null;
-  async function refreshSession() {
-    const { data } = await sb.auth.getSession();
-    const user = data.session && data.session.user;
+  // Apply a session to the UI. Called with the session object supabase-js hands us,
+  // never by calling back into the library from inside its own auth callback
+  // (that can deadlock and leave the page unchanged until a refresh).
+  function applySession(session) {
+    const user = session && session.user;
     if (!user || user.id !== currentUserId) resetState();   // signed out, or a different user signed in
     currentUserId = user ? user.id : null;
     $("auth").hidden = !!user;
     $("quiz").hidden = !user;
     $("btn-signout").hidden = !user;
     $("user-email").textContent = user ? user.email : "";
-    if (user) await loadQuiz();
+    if (user) loadQuiz();
+  }
+  async function refreshSession() {
+    const { data } = await sb.auth.getSession();
+    applySession(data.session);
   }
 
   $("auth-form").addEventListener("submit", async (ev) => {
@@ -104,12 +110,14 @@
   });
 
   $("btn-signout").addEventListener("click", async () => {
-    $("quiz").hidden = true;
-    resetState();
-    try { await sb.auth.signOut(); } catch (e) { /* local session is cleared regardless */ }
-    await refreshSession();
+    applySession(null);                                   // hide and wipe immediately
+    let { error } = await sb.auth.signOut();              // revoke the session on the server
+    if (error) ({ error } = await sb.auth.signOut({ scope: "local" }));  // at least forget it in this browser
+    if (error) setMsg($("auth-msg"), "Sign-out could not be completed: " + errText(error), "bad");
   });
-  sb.auth.onAuthStateChange(() => { refreshSession(); });
+  // supabase-js fires INITIAL_SESSION on load, then SIGNED_IN / SIGNED_OUT / TOKEN_REFRESHED.
+  // Defer the UI update so nothing runs inside the library's callback.
+  sb.auth.onAuthStateChange((event, session) => { setTimeout(() => applySession(session), 0); });
   // A page restored from the back/forward cache keeps its old DOM; re-check the session.
   window.addEventListener("pageshow", (ev) => { if (ev.persisted) refreshSession(); });
 
@@ -240,5 +248,4 @@
     })));
   }
 
-  refreshSession();
 })();

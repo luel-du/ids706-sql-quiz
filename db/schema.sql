@@ -300,8 +300,8 @@ begin
   return (
     select coalesce(json_agg(json_build_object(
              'action', a.action, 'question_id', a.question_id, 'row_count', a.row_count,
-             'ok', a.ok, 'matched', a.matched, 'error', a.error, 'created_at', a.created_at) order by a.created_at desc), '[]'::json)
-    from (select * from quiz.audit_log where user_id = auth.uid() order by created_at desc limit 50) a
+             'ok', a.ok, 'matched', a.matched, 'error', a.error, 'created_at', a.created_at) order by a.created_at desc, a.id desc), '[]'::json)
+    from (select * from quiz.audit_log where user_id = auth.uid() order by created_at desc, id desc limit 50) a
   );
 end $$;
 

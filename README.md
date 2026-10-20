@@ -35,7 +35,7 @@ verifies every answer key on each push.
 - **Two-step answer key.** The full expected SQL and result are available behind a confirmation, and every reveal is recorded in the audit log.
 - **Saved answers.** The latest saved answer per question is restored on the next sign-in.
 - **Append-only audit log.** Every run, save, and answer-key reveal is recorded. The log cannot be updated or deleted, even by the table owner.
-- **Verified answer keys.** CI re-runs every hint query on every push and fails if a result drifts from the stored hint.
+- **Verified answer keys and tested security.** On every push, CI re-runs every hint query and runs an integration test suite that checks the grants, the sandbox, the match logic, and the audit log against the real database.
 - **No secrets in the repository.** The database password lives only in a local `.env` and in a GitHub Actions secret.
 
 ## Architecture
@@ -122,6 +122,14 @@ python scripts/seed_and_verify.py
 
 The script creates the schema, roles, functions, and policies, loads the seed data, and verifies the five hints. Expected output ends with `Q1 OK` through `Q5 OK` and `RESULT: PASS`. Add `--verify-only` to skip the apply step.
 
+Then run the tests:
+
+```bash
+pytest -q
+```
+
+`tests/test_quiz.py` connects to the same database and checks, inside one rolled-back transaction, that anonymous callers are refused, that student SQL cannot write or read private tables, that correct and incorrect answers are classified properly, that the question list does not leak the answer key, and that the audit log is append-only.
+
 To run the page locally:
 
 ```bash
@@ -142,7 +150,7 @@ python -m http.server -d docs 8000          # open http://localhost:8000
 
 | Job | Steps | Secrets used |
 | --- | --- | --- |
-| **Seed database and verify quiz hints** | Install Python dependencies; run `scripts/seed_and_verify.py`, which connects through the session pooler, applies `db/schema.sql` and `db/seed.sql`, checks that points sum to 20, re-runs each hint query and compares it with the stored result, and confirms the `anon` role cannot execute any quiz function | `DATABASE_URL` |
+| **Seed database, verify quiz hints, run tests** | Install Python dependencies; run `scripts/seed_and_verify.py`, which connects through the session pooler, applies `db/schema.sql` and `db/seed.sql`, checks that points sum to 20, re-runs each hint query and compares it with the stored result, and confirms the `anon` role cannot execute any quiz function; then run `pytest` against the same database | `DATABASE_URL` |
 | **Deploy quiz site to GitHub Pages** | Write `docs/config.js` from secrets; upload `docs/` and deploy with `actions/deploy-pages` | `SUPABASE_URL`, `SUPABASE_ANON_KEY` |
 
 The deploy job runs only after verification passes. GitHub masks secret values in logs. The workflow file contains no credentials.
@@ -166,7 +174,7 @@ The deploy job runs only after verification passes. GitHub masks secret values i
 |-- README.md
 |-- .env.example                 variable names with placeholders
 |-- .gitignore                   .env, docs/config.js, .venv/
-|-- requirements.txt             psycopg2-binary, python-dotenv (pinned)
+|-- requirements.txt             psycopg2-binary, python-dotenv, pytest (pinned)
 |-- assets/
 |   `-- screenshot.png           README image, not published with the site
 |-- db/
@@ -174,6 +182,8 @@ The deploy job runs only after verification passes. GitHub masks secret values i
 |   `-- seed.sql                 seed data and the five questions with hint SQL and hint results (idempotent)
 |-- scripts/
 |   `-- seed_and_verify.py       applies db/*.sql, verifies every hint, checks anon has no access
+|-- tests/
+|   `-- test_quiz.py             integration tests: grants, sandbox, matching, audit log
 |-- docs/                        GitHub Pages site
 |   |-- index.html
 |   |-- app.js
