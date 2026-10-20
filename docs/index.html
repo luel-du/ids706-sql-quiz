@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A 20-point SQL quiz against a live PostgreSQL database on Supabase. Sign in, write SQL, run it, see the rows.">
   <title>IDS706 SQL Quiz</title>
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -40,13 +41,13 @@
       <p class="muted">Schema <code>quiz</code> is on the search path, so plain table names work.</p>
       <ul class="tables">
         <li><b>instructors</b> (id, name, department, hired_year)</li>
-        <li><b>courses</b> (id, code, title, credits, instructor_id → instructors.id)</li>
+        <li><b>courses</b> (id, code, title, credits, instructor_id --> instructors.id)</li>
         <li><b>students</b> (id, name, major, start_year)</li>
-        <li><b>enrollments</b> (id, student_id → students.id, course_id → courses.id, term, grade_points)</li>
+        <li><b>enrollments</b> (id, student_id --> students.id, course_id --> courses.id, term, grade_points)</li>
       </ul>
       <h2>Questions</h2>
       <ol id="question-list" class="qlist"></ol>
-      <p class="muted small">Total: <span id="total-points"></span> points</p>
+      <p class="muted small">Total: <span id="total-points"></span> points. A check mark appears when your last run matched the expected result.</p>
     </aside>
 
     <section class="card work">
@@ -56,7 +57,7 @@
       </div>
       <p id="q-prompt" class="prompt"></p>
 
-      <label class="editor-label" for="sql">Your SQL</label>
+      <label class="editor-label" for="sql">Your SQL <span class="muted small">(Ctrl+Enter runs)</span></label>
       <textarea id="sql" rows="8" spellcheck="false" placeholder="select ... from courses ..."></textarea>
       <div class="row">
         <button id="btn-run">Run</button>

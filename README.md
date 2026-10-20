@@ -1,5 +1,7 @@
 # IDS706 SQL Quiz (Supabase + GitHub Pages)
 
+[![CI](https://github.com/luel-du/ids706-sql-quiz/actions/workflows/ci.yml/badge.svg)](https://github.com/luel-du/ids706-sql-quiz/actions/workflows/ci.yml)
+
 **Quiz site: https://luel-du.github.io/ids706-sql-quiz/**
 
 A 20-point SQL quiz that runs against a live PostgreSQL database. A student signs in,
@@ -37,7 +39,7 @@ flowchart LR
 1. Open the quiz URL above and click **Create account** (any email, password of 6+ characters).
    Email confirmation is off, so you are signed in immediately.
 2. Pick a question on the left. Read the prompt.
-3. Type SQL in the editor and click **Run**. Table names need no schema prefix
+3. Type SQL in the editor and click **Run** (or press Ctrl+Enter). Table names need no schema prefix
    (`select * from courses`). Only a single `SELECT`/`WITH` statement is accepted; results are capped at 200 rows.
 4. Compare your result to **Show hint**, which reveals the expected SQL and the expected result table.
    The page also tells you when your result matches the expected answer exactly.
@@ -49,23 +51,18 @@ flowchart LR
 | Table | Columns | Keys |
 | --- | --- | --- |
 | `instructors` | id, name, department, hired_year | PK id |
-| `courses` | id, code, title, credits, instructor_id | PK id, FK instructor_id → instructors |
+| `courses` | id, code, title, credits, instructor_id | PK id, FK instructor_id --> instructors |
 | `students` | id, name, major, start_year | PK id |
-| `enrollments` | id, student_id, course_id, term, grade_points | PK id, FK student_id → students, FK course_id → courses, UNIQUE (student_id, course_id, term) |
+| `enrollments` | id, student_id, course_id, term, grade_points | PK id, FK student_id --> students, FK course_id --> courses, UNIQUE (student_id, course_id, term) |
 
 6 instructors, 10 courses, 15 students, 45 enrollments. All fictional. See `db/seed.sql`.
 
-### Questions (5 × 4 points = 20)
+### Questions
 
-| # | Pts | Skill | Question |
-| --- | --- | --- | --- |
-| 1 | 4 | WHERE, ORDER BY | List the code, title, and credits of every course worth 4 credits, ordered by code. |
-| 2 | 4 | JOIN | Show each course title with the name of its instructor (`instructor`), sorted by instructor name, then title. |
-| 3 | 4 | JOIN, GROUP BY, COUNT | How many students are enrolled in each course? Title and count (`students`), largest first, then title. |
-| 4 | 4 | 3-table JOIN, AVG, ROUND | Average `grade_points` across each instructor's courses, rounded to 2 decimals (`avg_grade`), highest first, then name. |
-| 5 | 4 | CTE / subquery, HAVING-style filter | Which students have earned more total credits than the average student? Name and `total_credits`, highest first, then name. |
-
-Each question's expected SQL and expected result are stored in `quiz.questions` and shown in the hint.
+Five questions, 4 points each, 20 points in total. They progress from a single-table filter and sort,
+through two- and three-table joins with aggregates, to a query that compares each student against an
+average. The prompts, the expected SQL, and the expected result for each question are stored in
+`quiz.questions` and are shown in the app only to signed-in users, so they are not reproduced here.
 Grading compares result sets, not SQL text.
 
 ## Repository layout
@@ -88,13 +85,13 @@ docs/config.example.js       template for the local config.js (CI generates the 
 ### 1. Supabase
 
 1. Create a free project at https://supabase.com. Note the database password.
-2. **Project Settings → Database → Connection string → Session pooler.** Copy the URI
+2. **Project Settings --> Database --> Connection string --> Session pooler.** Copy the URI
    (`postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres`)
    and append `?sslmode=require`. This is `DATABASE_URL`.
-3. **Project Settings → API.** Copy the Project URL (`SUPABASE_URL`) and the `anon` `public` key (`SUPABASE_ANON_KEY`).
-4. **Authentication → Providers → Email.** Turn **Confirm email** off so students can sign up and start immediately.
+3. **Project Settings --> API.** Copy the Project URL (`SUPABASE_URL`) and the `anon` `public` key (`SUPABASE_ANON_KEY`).
+4. **Authentication --> Providers --> Email.** Turn **Confirm email** off so students can sign up and start immediately.
    (Leave it on if you prefer; students then click a link in their inbox before signing in.)
-5. **Authentication → URL Configuration.** Set Site URL to the quiz URL (optional, used for email links).
+5. **Authentication --> URL Configuration.** Set Site URL to the quiz URL (optional, used for email links).
 
 ### 2. Local machine
 
@@ -120,11 +117,23 @@ python -m http.server -d docs 8000          # open http://localhost:8000
 ### 3. GitHub
 
 1. Push the repo to GitHub.
-2. **Settings → Secrets and variables → Actions → New repository secret**, three times:
+2. **Settings --> Secrets and variables --> Actions --> New repository secret**, three times:
    `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`.
-3. **Settings → Pages → Source: GitHub Actions.**
+3. **Settings --> Pages --> Source: GitHub Actions.**
 4. Push to `main` (or run the **CI** workflow manually). The first job prints the connection target
    (password masked by GitHub), applies schema and seed, and verifies the five hints. The second job deploys the site.
+
+## For graders
+
+1. Open the quiz URL, click **Create account**, and sign in. Signed out, the Run and Save buttons are not shown,
+   and the database itself refuses the calls (`permission denied for function run_quiz_sql`).
+2. Pick a question, run any SQL, and compare the rows to **Show hint**.
+3. The **Actions** tab shows green runs of the `CI` workflow. The seed-and-verify job prints the connection
+   target with the password masked, then `Q1 OK` to `Q5 OK` and `RESULT: PASS`. The secret is read as
+   `DATABASE_URL`; the workflow file contains no credentials.
+4. Searching the repository for the database password returns nothing. `.env` and `docs/config.js` are git-ignored.
+5. Extra credit evidence: `db/schema.sql` (functions, RLS, trigger), `scripts/seed_and_verify.py` (parameterized
+   queries), and the **My activity** panel in the app (audit log).
 
 ## Security notes
 

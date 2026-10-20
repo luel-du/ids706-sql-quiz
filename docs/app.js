@@ -17,6 +17,7 @@
 
   let questions = [];
   let answers = {};      // question_id -> latest saved sql
+  let matched = {};      // question_id -> true when the last run matched the hint (this session only)
   let current = null;    // current question object
 
   // ---------- helpers ----------
@@ -105,7 +106,7 @@
       left.textContent = "Q" + q.ord + " · " + q.points + " pts";
       const right = document.createElement("span");
       right.className = "saved";
-      right.textContent = answers[q.id] ? "saved" : "";
+      right.textContent = [matched[q.id] ? "\u2713 match" : "", answers[q.id] ? "saved" : ""].filter(Boolean).join(" \u00b7 ");
       li.append(left, right);
       li.addEventListener("click", () => selectQuestion(q.id));
       ol.appendChild(li);
@@ -140,6 +141,8 @@
       if (!data.ok) { $("result").innerHTML = ""; return setMsg($("run-msg"), "Error: " + data.error, "bad"); }
       renderTable($("result"), data.rows, { truncated: data.truncated });
       const match = JSON.stringify(data.rows) === JSON.stringify(current.hint_result);
+      matched[current.id] = match;
+      renderQuestionList();
       setMsg($("run-msg"), match ? "Result matches the expected answer." : "Ran. Compare with the hint.", match ? "ok" : "");
     } catch (e) {
       $("result").innerHTML = "";
@@ -148,6 +151,11 @@
       $("btn-run").disabled = false;
       loadAudit();
     }
+  });
+
+  // Ctrl+Enter (or Cmd+Enter) in the editor runs the query.
+  $("sql").addEventListener("keydown", (ev) => {
+    if ((ev.ctrlKey || ev.metaKey) && ev.key === "Enter") { ev.preventDefault(); $("btn-run").click(); }
   });
 
   $("btn-save").addEventListener("click", async () => {
