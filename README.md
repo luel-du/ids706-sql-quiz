@@ -29,9 +29,10 @@ verifies every answer key on each push.
 - **Live SQL execution.** Queries run against hosted Postgres and return real rows, capped at 200.
 - **Authentication gate.** Supabase Auth with email and password. Signed-out users cannot run or save; the database itself refuses the call, not just the page.
 - **Sandboxed queries.** Student SQL executes under a read-only role that can see only the four quiz tables.
-- **Five questions, 20 points.** Each question ships with a hint showing the expected SQL and the expected result table. The page reports when a run matches the expected result exactly.
+- **Five questions, 20 points.** Each question shows its expected output up front: column names, the first two rows, and the row count. The database reports whether a run matches the expected result exactly.
+- **Two-step answer key.** The full expected SQL and result are available behind a confirmation, and every reveal is recorded in the audit log.
 - **Saved answers.** The latest saved answer per question is restored on the next sign-in.
-- **Append-only audit log.** Every run and save is recorded. The log cannot be updated or deleted, even by the table owner.
+- **Append-only audit log.** Every run, save, and answer-key reveal is recorded. The log cannot be updated or deleted, even by the table owner.
 - **Verified answer keys.** CI re-runs every hint query on every push and fails if a result drifts from the stored hint.
 - **No secrets in the repository.** The database password lives only in a local `.env` and in a GitHub Actions secret.
 
@@ -57,16 +58,17 @@ Request flow for a single **Run**:
 1. The page calls `run_quiz_sql(question_id, sql)` through the Supabase REST API, passing the signed-in user's token.
 2. The function confirms `auth.uid()` is present, rejects anything that is not a single `SELECT` or `WITH` statement, and hands the text to `quiz.exec_readonly()`.
 3. `exec_readonly()` is a `SECURITY DEFINER` function owned by `quiz_reader`, a `NOLOGIN` role with `SELECT` on the four data tables and no other privilege. The query runs with exactly those rights.
-4. The rows come back as JSON with column order preserved. One row is appended to `quiz.audit_log` recording user, question, SQL text, row count, and success or error.
-5. The page renders the table and compares it with the stored expected result for that question.
+4. The rows come back as JSON with column order preserved. One row is appended to `quiz.audit_log` recording user, question, SQL text, row count, match outcome, and success or error.
+5. The function compares the rows with the stored expected result, records the outcome, and the page renders the table with a match indicator.
 
 ## Taking the quiz
 
 1. Open the [live quiz](https://luel-du.github.io/ids706-sql-quiz/) and click **Create account**. Any email address and a password of at least six characters work. With email confirmation disabled in the Supabase project (see [Deploying your own copy](#deploying-your-own-copy)), you are signed in immediately.
 2. Select a question in the left panel and read the prompt.
 3. Write SQL in the editor and click **Run**, or press Ctrl+Enter. Table names need no schema prefix, for example `select * from courses`. One statement per run.
-4. Compare your rows with **Show hint**, which reveals the expected SQL and expected result. A check mark appears next to the question when your result matches exactly.
-5. Click **Save answer** to store your SQL. **My activity** lists your own audit-log entries.
+4. Compare your rows with the **Expected output** box under the prompt, which shows the column names, the first two rows, and the total row count. A check mark appears next to the question when your result matches exactly.
+5. If you are stuck, **Reveal answer key** shows the full expected SQL and result after a confirmation. Reveals are recorded in your activity log.
+6. Click **Save answer** to store your SQL. **My activity** lists your own audit-log entries.
 
 ## Data model
 
@@ -83,7 +85,7 @@ Seed volume: 6 instructors, 10 courses, 15 students, 45 enrollments. All names a
 
 ### The questions
 
-Five questions at 4 points each. They progress from a single-table filter and sort, through two- and three-table joins with aggregates, to a query that compares each student against an average. Prompts, expected SQL, and expected results are stored in `quiz.questions` and shown in the app to signed-in users. Grading compares result sets, not SQL text.
+Five questions at 4 points each. They progress from a single-table filter and sort, through two- and three-table joins with aggregates, to a query that compares each student against an average. Prompts, expected SQL, and expected results are stored in `quiz.questions`. Signed-in users see the prompt and an expected-output preview; the full key is shown only on request. An answer is judged by the rows it returns, not by matching the expected SQL character for character.
 
 ## Configuration
 
@@ -147,7 +149,7 @@ The deploy job runs only after verification passes. GitHub masks secret values i
 
 | Concern | Mechanism |
 | --- | --- |
-| Signed-out users cannot run or save | `EXECUTE` on the five public functions is granted to `authenticated` only and revoked from `anon` and `public`. Each function also raises if `auth.uid()` is null. |
+| Signed-out users cannot run or save | `EXECUTE` on the six public functions is granted to `authenticated` only and revoked from `anon` and `public`. Each function also raises if `auth.uid()` is null. |
 | Student SQL cannot modify data | Queries execute inside `quiz.exec_readonly()`, owned by `quiz_reader`, a `NOLOGIN` role with `SELECT` on the four data tables only. Any write, and any read of `questions`, `submissions`, `audit_log`, or other schemas, fails with `permission denied`. Only a single `SELECT` or `WITH` statement is accepted; semicolons are rejected. |
 | Students cannot see each other's answers | `submissions` and `audit_log` have Row Level Security enabled and forced with no policies for application roles. They are reachable only through functions that filter on `auth.uid()`. |
 | The audit log cannot be altered | A `BEFORE UPDATE OR DELETE` trigger raises an exception for every role, including the table owner. |

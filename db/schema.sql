@@ -63,7 +63,7 @@ create table if not exists quiz.audit_log (
   id          bigint generated always as identity primary key,
   user_id     uuid not null,
   user_email  text,
-  action      text not null check (action in ('run', 'save')),
+  action      text not null,
   question_id int references quiz.questions(id),
   sql_text    text not null,
   row_count   int,
@@ -71,6 +71,11 @@ create table if not exists quiz.audit_log (
   error       text,
   created_at  timestamptz not null default now()
 );
+
+-- Additive changes for existing databases (no-ops on a fresh one).
+alter table quiz.audit_log drop constraint if exists audit_log_action_check;
+alter table quiz.audit_log add constraint audit_log_action_check check (action in ('run', 'save', 'hint'));
+alter table quiz.audit_log add column if not exists matched boolean;
 
 -- ---------------------------------------------------------------------------
 -- Locking down the schema
@@ -141,7 +146,9 @@ grant execute on function quiz.exec_readonly(text) to postgres;
 -- Functions the browser calls (schema public so PostgREST exposes them)
 -- ---------------------------------------------------------------------------
 
--- List the questions. Requires sign-in.
+-- List the questions with an expected-output preview: column names, the first
+-- two rows, and the total row count. The full answer key is NOT included here;
+-- see reveal_answer_key(). Requires sign-in.
 create or replace function public.list_questions()
 returns json
 language plpgsql security definer set search_path = quiz, public as $$
@@ -152,10 +159,34 @@ begin
   return (
     select coalesce(json_agg(json_build_object(
              'id', q.id, 'ord', q.ord, 'points', q.points, 'prompt', q.prompt,
-             'hint_sql', q.hint_sql, 'hint_result', q.hint_result)
+             'columns', (select coalesce(json_agg(k), '[]'::json) from json_object_keys(q.hint_result -> 0) k),
+             'sample_rows', (select coalesce(json_agg(r), '[]'::json)
+                             from (select r from json_array_elements(q.hint_result) r limit 2) s),
+             'row_count', json_array_length(q.hint_result))
              order by q.ord), '[]'::json)
     from quiz.questions q
   );
+end $$;
+
+-- Reveal the full answer key (expected SQL and expected result) for one question.
+-- Every reveal is recorded in the audit log. Requires sign-in.
+create or replace function public.reveal_answer_key(p_question_id int)
+returns json
+language plpgsql security definer set search_path = quiz, public as $$
+declare
+  v_uid uuid := auth.uid();
+  q     quiz.questions%rowtype;
+begin
+  if v_uid is null then
+    raise exception 'Sign in to view the answer key' using errcode = '42501';
+  end if;
+  select * into q from quiz.questions where id = p_question_id;
+  if not found then
+    raise exception 'Unknown question %', p_question_id;
+  end if;
+  insert into quiz.audit_log (user_id, user_email, action, question_id, sql_text, ok)
+  values (v_uid, auth.jwt() ->> 'email', 'hint', p_question_id, q.hint_sql, true);
+  return json_build_object('question_id', q.id, 'hint_sql', q.hint_sql, 'hint_result', q.hint_result);
 end $$;
 
 -- Run one read-only SELECT as quiz_reader and return rows as JSON.
@@ -171,6 +202,7 @@ declare
   v_rows   json;
   v_count  int;
   v_err    text;
+  v_match  boolean;
 begin
   if v_uid is null then
     raise exception 'Sign in to run a query' using errcode = '42501';
@@ -196,14 +228,21 @@ begin
     v_err := sqlerrm;
   end;
 
-  insert into quiz.audit_log (user_id, user_email, action, question_id, sql_text, row_count, ok, error)
-  values (v_uid, v_email, 'run', p_question_id, p_sql, v_count, v_err is null, v_err);
+  if v_err is null then
+    -- Does the result set equal the expected one? jsonb equality ignores key
+    -- order and formatting but keeps row order, so ORDER BY still matters.
+    select (v_rows::jsonb = q.hint_result::jsonb) into v_match
+    from quiz.questions q where q.id = p_question_id;
+  end if;
+
+  insert into quiz.audit_log (user_id, user_email, action, question_id, sql_text, row_count, ok, error, matched)
+  values (v_uid, v_email, 'run', p_question_id, p_sql, v_count, v_err is null, v_err, v_match);
 
   if v_err is not null then
     return json_build_object('ok', false, 'error', v_err);
   end if;
   return json_build_object('ok', true, 'row_count', v_count, 'rows', v_rows,
-                           'truncated', v_count >= 200);
+                           'truncated', v_count >= 200, 'matched', coalesce(v_match, false));
 end $$;
 
 -- Save an answer for the signed-in user. Also writes one audit row.
@@ -261,7 +300,7 @@ begin
   return (
     select coalesce(json_agg(json_build_object(
              'action', a.action, 'question_id', a.question_id, 'row_count', a.row_count,
-             'ok', a.ok, 'error', a.error, 'created_at', a.created_at) order by a.created_at desc), '[]'::json)
+             'ok', a.ok, 'matched', a.matched, 'error', a.error, 'created_at', a.created_at) order by a.created_at desc), '[]'::json)
     from (select * from quiz.audit_log where user_id = auth.uid() order by created_at desc limit 50) a
   );
 end $$;
@@ -273,8 +312,10 @@ revoke all on function public.run_quiz_sql(int, text)     from public, anon;
 revoke all on function public.save_answer(int, text)      from public, anon;
 revoke all on function public.my_answers()                from public, anon;
 revoke all on function public.my_audit_log()              from public, anon;
+revoke all on function public.reveal_answer_key(int)      from public, anon;
 grant execute on function public.list_questions()         to authenticated;
 grant execute on function public.run_quiz_sql(int, text)  to authenticated;
 grant execute on function public.save_answer(int, text)   to authenticated;
 grant execute on function public.my_answers()             to authenticated;
 grant execute on function public.my_audit_log()           to authenticated;
+grant execute on function public.reveal_answer_key(int)   to authenticated;

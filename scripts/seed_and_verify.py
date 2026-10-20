@@ -109,7 +109,7 @@ def main() -> int:
                 select p.proname, has_function_privilege('anon', p.oid, 'execute')
                 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
                 where n.nspname = 'public'
-                  and p.proname in ('run_quiz_sql', 'save_answer', 'list_questions', 'my_answers', 'my_audit_log')
+                  and p.proname in ('run_quiz_sql', 'save_answer', 'list_questions', 'my_answers', 'my_audit_log', 'reveal_answer_key')
                 order by 1
                 """
             )

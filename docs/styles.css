@@ -44,3 +44,7 @@ pre { background: var(--code); padding: 10px; border-radius: 8px; overflow-x: au
 code { background: var(--code); padding: 1px 5px; border-radius: 4px; }
 footer { max-width: 1200px; margin: 24px auto 0; }
 a { color: var(--accent); }
+.expected { margin: 0 0 14px; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 8px; }
+.expected-label { margin: 0 0 4px; }
+.expected .result { margin-top: 4px; }
+.hint h3 { font-size: 15px; margin: 0 0 4px; }

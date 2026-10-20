@@ -1,5 +1,5 @@
 /* IDS706 SQL Quiz: browser app.
- * Talks only to Supabase: Auth for sign-in, and four Postgres functions through rpc().
+ * Talks only to Supabase: Auth for sign-in, and Postgres functions through rpc().
  * Every call uses named parameters; no SQL is built by string concatenation here.
  * The database refuses run/save for signed-out users even if this page is bypassed.
  */
@@ -17,7 +17,8 @@
 
   let questions = [];
   let answers = {};      // question_id -> latest saved sql
-  let matched = {};      // question_id -> true when the last run matched the hint (this session only)
+  let matched = {};      // question_id -> true when a run matched the expected result (this session only)
+  let keys = {};         // question_id -> revealed answer key {hint_sql, hint_result}
   let current = null;    // current question object
 
   // ---------- helpers ----------
@@ -46,7 +47,12 @@
       });
     });
     container.appendChild(table);
-    note.textContent = rows.length + (rows.length === 1 ? " row" : " rows") + ((opts && opts.truncated) ? " (showing the first 200)" : "");
+    if (opts && opts.totalRows !== undefined) {
+      const more = opts.totalRows - rows.length;
+      note.textContent = more > 0 ? "... and " + more + " more " + (more === 1 ? "row" : "rows") + " (" + opts.totalRows + " in total)" : opts.totalRows + (opts.totalRows === 1 ? " row" : " rows") + " in total";
+    } else {
+      note.textContent = rows.length + (rows.length === 1 ? " row" : " rows") + ((opts && opts.truncated) ? " (showing the first 200)" : "");
+    }
     container.appendChild(note);
   }
 
@@ -123,12 +129,38 @@
     if (!keepEditor) $("sql").value = answers[id] || "";
     $("result").innerHTML = "";
     setMsg($("run-msg"), "");
-    $("hint").open = false;
-    $("hint-sql").textContent = current.hint_sql;
-    renderTable($("hint-result"), current.hint_result);
+    $("q-shape").textContent = (current.columns || []).length + " column" + (current.columns.length === 1 ? "" : "s") + " (" + (current.columns || []).join(", ") + "), " + current.row_count + " row" + (current.row_count === 1 ? "" : "s");
+    renderTable($("q-sample"), current.sample_rows || [], { totalRows: current.row_count });
+    showKey(keys[id]);
   }
 
-  $("btn-hint").addEventListener("click", () => { $("hint").open = !$("hint").open; if ($("hint").open) $("hint").scrollIntoView({ behavior: "smooth", block: "nearest" }); });
+  function showKey(key) {
+    $("hint").hidden = !key;
+    $("btn-hint").textContent = key ? "Hide answer key" : "Reveal answer key";
+    if (!key) return;
+    $("hint-sql").textContent = key.hint_sql;
+    renderTable($("hint-result"), key.hint_result);
+  }
+
+  $("btn-hint").addEventListener("click", async () => {
+    if (!current) return;
+    if (!$("hint").hidden) { $("hint").hidden = true; $("btn-hint").textContent = "Reveal answer key"; return; }
+    if (keys[current.id]) { showKey(keys[current.id]); return; }
+    if (!window.confirm("Reveal the full answer key for question " + current.ord + "? This shows the expected SQL and result, and the reveal is recorded in your activity log.")) return;
+    $("btn-hint").disabled = true;
+    try {
+      const { data, error } = await sb.rpc("reveal_answer_key", { p_question_id: current.id });
+      if (error) throw error;
+      keys[current.id] = data;
+      showKey(data);
+      $("hint").scrollIntoView({ behavior: "smooth", block: "nearest" });
+    } catch (e) {
+      setMsg($("run-msg"), "Error: " + errText(e), "bad");
+    } finally {
+      $("btn-hint").disabled = false;
+      loadAudit();
+    }
+  });
 
   $("btn-run").addEventListener("click", async () => {
     if (!current) return;
@@ -140,10 +172,10 @@
       if (error) throw error;
       if (!data.ok) { $("result").innerHTML = ""; return setMsg($("run-msg"), "Error: " + data.error, "bad"); }
       renderTable($("result"), data.rows, { truncated: data.truncated });
-      const match = JSON.stringify(data.rows) === JSON.stringify(current.hint_result);
-      matched[current.id] = match;
+      const match = data.matched === true;
+      if (match) matched[current.id] = true;
       renderQuestionList();
-      setMsg($("run-msg"), match ? "Result matches the expected answer." : "Ran. Compare with the hint.", match ? "ok" : "");
+      setMsg($("run-msg"), match ? "Result matches the expected output." : "Ran. Compare with the expected output above.", match ? "ok" : "");
     } catch (e) {
       $("result").innerHTML = "";
       setMsg($("run-msg"), "Error: " + errText(e), "bad");
@@ -179,7 +211,7 @@
     if (error) { $("audit").textContent = errText(error); return; }
     renderTable($("audit"), (data || []).map((r) => ({
       when: new Date(r.created_at).toLocaleString(), action: r.action, question: r.question_id,
-      ok: r.ok, rows: r.row_count, error: r.error,
+      ok: r.ok, matched: r.action === "run" ? r.matched : null, rows: r.row_count, error: r.error,
     })));
   }
 

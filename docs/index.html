@@ -47,7 +47,7 @@
       </ul>
       <h2>Questions</h2>
       <ol id="question-list" class="qlist"></ol>
-      <p class="muted small">Total: <span id="total-points"></span> points. A check mark appears when your last run matched the expected result.</p>
+      <p class="muted small">Total: <span id="total-points"></span> points. A check mark appears when a run matched the expected result.</p>
     </aside>
 
     <section class="card work">
@@ -57,22 +57,28 @@
       </div>
       <p id="q-prompt" class="prompt"></p>
 
+      <div class="expected">
+        <p class="muted small expected-label">Expected output: <span id="q-shape"></span></p>
+        <div id="q-sample" class="result"></div>
+      </div>
+
       <label class="editor-label" for="sql">Your SQL <span class="muted small">(Ctrl+Enter runs)</span></label>
       <textarea id="sql" rows="8" spellcheck="false" placeholder="select ... from courses ..."></textarea>
       <div class="row">
         <button id="btn-run">Run</button>
         <button id="btn-save" class="ghost">Save answer</button>
-        <button id="btn-hint" class="ghost">Show hint</button>
+        <button id="btn-hint" class="ghost">Reveal answer key</button>
         <span id="run-msg" class="msg" role="status"></span>
       </div>
 
       <div id="result" class="result"></div>
 
-      <details id="hint" class="hint">
-        <summary>Hint: expected SQL and expected result</summary>
+      <section id="hint" class="hint" hidden>
+        <h3>Answer key</h3>
+        <p class="muted small">Expected SQL (any query that returns the same rows is correct) and the full expected result. This reveal is recorded in your activity.</p>
         <pre id="hint-sql"></pre>
         <div id="hint-result" class="result"></div>
-      </details>
+      </section>
 
       <details class="hint">
         <summary>My activity (audit log)</summary>
