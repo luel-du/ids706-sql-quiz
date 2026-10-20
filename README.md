@@ -11,6 +11,8 @@ verifies every answer key on each push.
 
 **Live quiz:** https://luel-du.github.io/ids706-sql-quiz/
 
+![The quiz page: question list on the left, prompt with expected-output preview, SQL editor, and the result table with a match indicator](docs/screenshot.png)
+
 ## Contents
 
 - [Features](#features)
