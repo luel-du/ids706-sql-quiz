@@ -21,7 +21,6 @@ verifies every answer key on each push.
 - [Deploying your own copy](#deploying-your-own-copy)
 - [Continuous integration](#continuous-integration)
 - [Security model](#security-model)
-- [Assignment rubric](#assignment-rubric)
 - [Project structure](#project-structure)
 - [Troubleshooting](#troubleshooting)
 
@@ -155,19 +154,6 @@ The deploy job runs only after verification passes. GitHub masks secret values i
 | No SQL built from strings in application code | The page calls functions through `rpc()` with named parameters. The CI script uses psycopg2 `%s` parameters. The only dynamic SQL is the student's own query, which is the sandboxed feature itself. |
 | Runaway queries | Supabase sets `statement_timeout` to 8 seconds for the `authenticated` role. Results are capped at 200 rows. |
 | Secrets | The database password exists only in a local `.env` and in a GitHub Actions secret. The browser receives the anon key, which is public by design. |
-
-## Assignment rubric
-
-| Requirement | Where it is satisfied | How to check |
-| --- | --- | --- |
-| Hosted PostgreSQL with data loaded, quiz reads from it | Supabase project, schema `quiz`, seeded by `db/seed.sql` | Run any query in the app; rows come from the hosted database |
-| Authentication gates save and query | Supabase Auth, function grants, forced RLS | Signed out, the editor is hidden and the API answers `permission denied for function run_quiz_sql` |
-| GitHub Actions with a secret, green run, no password in repo | `ci.yml`, three repository secrets, `.gitignore` | Actions tab shows green runs; the seed job log prints `RESULT: PASS`; a repository search for the password returns nothing |
-| SQL quiz worth 20 points with hints and live rows | Five 4-point questions in `quiz.questions`, each with hint SQL and hint result | Open a question, run SQL, compare with **Show hint** |
-| README with quiz URL and a usable write-up | This file | Live URL at the top; setup and usage sections above |
-| Extra credit: parameterized queries | `docs/app.js`, `scripts/seed_and_verify.py` | No string-built SQL in application code |
-| Extra credit: audit log | `quiz.audit_log`, written by `run_quiz_sql` and `save_answer` | **My activity** panel in the app |
-| Extra credit: taker cannot edit the log | No grants or policies, plus the `audit_log_no_change` trigger | `db/schema.sql` |
 
 ## Project structure
 
